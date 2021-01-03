@@ -1,3 +1,4 @@
+""" Streamlit app with multiple views capable of CRUD and analysis of lifting data """
 import streamlit as st
 
 
