@@ -3,6 +3,9 @@
 import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine
+from bokeh.embed import components
+from bokeh.plotting import figure, output_file, show
+from bokeh.palettes import Category10  # pylint: disable-msg=E0611
 
 
 def calculate_1RM(weight: float, reps: int) -> float:
@@ -49,10 +52,10 @@ def calculate_total(s: pd.DataFrame, b: pd.DataFrame, d: pd.DataFrame) -> pd.Dat
 
     's' 'b' 'd' are the DataFrames created by get_maxes()
     """
-    temp = s["1RM"] + b["1RM"] + d["1RM"]
+    temp = s["orm"] + b["orm"] + d["orm"]
 
     total = temp.to_frame()
-    total.rename(columns={"1RM": "Total"}, inplace=True)
+    total.rename(columns={"orm": "Total"}, inplace=True)
     total.name = "Total"
     return total
 
@@ -94,7 +97,7 @@ def load_lifts_sql(sql_db_file: str):
     """
     Loads lifts from SQL database to a DataFrame
     """
-    engine = create_engine(f"sqlite:///{sql_db_file}", echo=True)
+    engine = create_engine(f"sqlite:///{sql_db_file}", echo=False)
 
     df = pd.read_sql_table("lifts", engine)
     return df
@@ -128,9 +131,9 @@ def get_maxes(df: pd.DataFrame, exercise: str, frequency="W") -> pd.DataFrame:
         )
     else:
         # filter for exercise, get max 1RM for each day
-        df2 = df[df["Exercise"] == exercise]
-        grouped_df = df2[["Date", "1RM"]].groupby(
-            pd.Grouper(key="Date", freq=frequency)
+        df2 = df[df["exercise"] == exercise]
+        grouped_df = df2[["date", "orm"]].groupby(
+            pd.Grouper(key="date", freq=frequency)
         )
     max_df = grouped_df.max().ffill()
     max_df.name = exercise
@@ -177,3 +180,36 @@ def remove_exercise(df: pd.DataFrame, removed_exercise):
     """
     _a = 1
     return None
+
+
+def plot_lift_vs_time(*args: pd.DataFrame):
+    """
+    Plot an arbitrary number of lifts on an HTML line chart
+    """
+    # output to static HTML file
+    output_file("max_lifts.html")
+
+    # create a new plot with a title and axis labels
+    # https://bokeh.pydata.org/en/latest/docs/reference/models/layouts.html#bokeh.models.layouts.LayoutDOM.sizing_mode
+    p = figure(
+        title="One Rep Maxes vs. Time",
+        x_axis_label="Time",
+        y_axis_label="Max 1RM (lb)",
+        x_axis_type="datetime",
+        sizing_mode="stretch_width",
+        plot_height=400,
+    )
+
+    # split data into x(date) and y(weight), then plot
+    for i, lift in enumerate(args):
+        x = lift.index
+        y = lift[lift.columns[0]]
+
+        p.line(
+            x=x, y=y, line_width=2, line_color=Category10[6][i], legend_label=lift.name
+        )
+
+    # show the results
+    # show(p)
+
+    return p
